@@ -133,22 +133,27 @@ def match_transactions(data_store, days_range: int = 30,
                        amount_tolerance: float = 0.01,
                        min_score: float = 0.4,
                        enable_multi: bool = True,
+                       multi_exclude: List[str] = None,
                        progress_callback=None) -> List[MatchResult]:
-    """将银行进账与发票进行匹配"""
+    """将银行进账与发票进行匹配（两轮：先单票严格匹配，再多票组合匹配）"""
+    if multi_exclude is None:
+        multi_exclude = []
+
     income_txs = data_store.get_income_transactions()
     invoices = data_store.invoices
-    results = []
+    results = {}
     used_invoices = set()
     total = len(income_txs)
 
     # 预过滤正数发票
     positive_invoices = [inv for inv in invoices if inv.is_positive]
 
+    # ========== 第一轮：单票严格匹配 ==========
     for idx, tx in enumerate(income_txs):
         if progress_callback:
-            progress_callback(idx + 1, total, tx.counterparty_name)
+            progress_callback(idx + 1, total, f"[单票] {tx.counterparty_name}")
 
-        # === 第1步：预过滤同名发票 ===
+        # 预过滤同名发票
         same_name_invs = []
         for inv in positive_invoices:
             if id(inv) in used_invoices:
@@ -158,21 +163,12 @@ def match_transactions(data_store, days_range: int = 30,
                 same_name_invs.append((inv, cust))
 
         if not same_name_invs:
-            cust = data_store.find_customer_by_name(tx.counterparty_name)
-            results.append(MatchResult(
-                transaction=tx, matched_invoice=None, matched_invoices=[],
-                match_type='unmatched', confidence=0.0,
-                customer_code=cust['code'] if cust else '',
-                customer_name=cust['name'] if cust else tx.counterparty_name,
-                notes='未匹配到对应发票'
-            ))
             continue
 
-        # === 第2步：单张发票匹配 ===
+        # 单张匹配
         best_match = None
         best_score = 0.0
         best_inv = None
-
         tx_date = normalize_date(tx.date)
 
         for inv, cust in same_name_invs:
@@ -208,46 +204,68 @@ def match_transactions(data_store, days_range: int = 30,
 
         if best_inv and best_score >= min_score:
             used_invoices.add(id(best_inv))
-            results.append(MatchResult(
+            results[id(tx)] = MatchResult(
                 transaction=tx, matched_invoice=best_inv, matched_invoices=[best_inv],
                 match_type=best_type, confidence=best_score,
                 customer_code=best_match['code'] if best_match else '',
                 customer_name=best_match['name'] if best_match else tx.counterparty_name,
                 notes=f"匹配方式: {best_type}"
-            ))
-        elif enable_multi:
-            # === 第3步：多张发票组合匹配 ===
+            )
+
+    # ========== 第二轮：多票组合匹配（仅未匹配的、未排除的）==========
+    if enable_multi:
+        for idx, tx in enumerate(income_txs):
+            if id(tx) in results:
+                continue
+
+            # 检查是否在排除名单中
+            if any(ex in tx.counterparty_name for ex in multi_exclude):
+                if progress_callback:
+                    progress_callback(idx + 1, total, f"[跳过] {tx.counterparty_name}")
+                continue
+
+            if progress_callback:
+                progress_callback(idx + 1, total, f"[多票] {tx.counterparty_name}")
+
+            # 预过滤同名、同天发票
+            tx_date = normalize_date(tx.date)
+            candidates = []
+            for inv in positive_invoices:
+                if id(inv) in used_invoices:
+                    continue
+                name_match, _, cust = match_by_name(tx, inv, data_store, strict_name)
+                if not name_match:
+                    continue
+                inv_date = normalize_date(inv.issue_date)
+                if not dates_within_range(tx_date, inv_date, 1):
+                    continue
+                candidates.append((inv, cust))
+
             multi_ok, multi_invs, cust, conf = match_multi_invoices(
-                tx, same_name_invs, strict_amount, amount_tolerance
+                tx, candidates, strict_amount, amount_tolerance
             )
             if multi_ok and conf >= min_score:
                 for inv in multi_invs:
                     used_invoices.add(id(inv))
                 inv_notes = ", ".join(f"{inv.total_amount:,.2f}" for inv in multi_invs)
-                results.append(MatchResult(
+                results[id(tx)] = MatchResult(
                     transaction=tx, matched_invoice=multi_invs[0], matched_invoices=multi_invs,
                     match_type='multi', confidence=conf,
                     customer_code=cust['code'] if cust else '',
                     customer_name=cust['name'] if cust else tx.counterparty_name,
                     notes=f"多票组合匹配({len(multi_invs)}张): {inv_notes}"
-                ))
-            else:
-                cust = data_store.find_customer_by_name(tx.counterparty_name)
-                results.append(MatchResult(
-                    transaction=tx, matched_invoice=None, matched_invoices=[],
-                    match_type='unmatched', confidence=0.0,
-                    customer_code=cust['code'] if cust else '',
-                    customer_name=cust['name'] if cust else tx.counterparty_name,
-                    notes='未匹配到对应发票'
-                ))
-        else:
+                )
+
+    # ========== 第三轮：未匹配的 ==========
+    for tx in income_txs:
+        if id(tx) not in results:
             cust = data_store.find_customer_by_name(tx.counterparty_name)
-            results.append(MatchResult(
+            results[id(tx)] = MatchResult(
                 transaction=tx, matched_invoice=None, matched_invoices=[],
                 match_type='unmatched', confidence=0.0,
                 customer_code=cust['code'] if cust else '',
                 customer_name=cust['name'] if cust else tx.counterparty_name,
                 notes='未匹配到对应发票'
-            ))
+            )
 
-    return results
+    return [results[id(tx)] for tx in income_txs]

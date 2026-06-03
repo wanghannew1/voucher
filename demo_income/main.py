@@ -71,6 +71,12 @@ with st.sidebar:
                           help="低于此分数视为未匹配")
     enable_multi = st.checkbox("多票组合匹配", value=True, key="enable_multi",
                                help="一笔进账对应多张发票时自动组合匹配（较慢）")
+    multi_exclude = st.text_area(
+        "排除多票匹配的单位（每行一个）",
+        value="吉林大学\n吉林大学第一医院\n吉林大学第二医院\n吉林大学中日联谊医院",
+        key="multi_exclude",
+        help="这些单位不参与多票组合匹配，只做单票严格匹配"
+    )
     col1, col2 = st.columns(2)
     load_btn = col1.button("加载数据", type="primary", use_container_width=True)
     match_btn = col2.button("自动匹配", type="primary", use_container_width=True)
@@ -146,6 +152,8 @@ if match_btn:
             progress_bar = st.progress(0, text="准备中...")
             status_text = st.empty()
 
+            exclude_list = [x.strip() for x in multi_exclude.split('\n') if x.strip()]
+
             def update_progress(current, total, name):
                 pct = current / total
                 progress_bar.progress(pct, text=f"匹配中 ({current}/{total}) {name}")
@@ -162,6 +170,7 @@ if match_btn:
                 days_range=days_range,
                 min_score=min_score,
                 enable_multi=enable_multi,
+                multi_exclude=exclude_list,
                 progress_callback=update_progress,
             )
             progress_bar.progress(1.0, text="匹配完成!")
