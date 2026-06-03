@@ -1,0 +1,44 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv
+env/
+ENV/
+*.tmp
+*.bak
+*.swp
+*~
+
+# ===== 财务敏感数据 =====
+# 银行对账单（绝对禁止上传）
+银行流水/
+银行流水/*.xlsx
+银行流水/*.xls
+银行流水/*:Zone.Identifier
+
+# 发票信息（绝对禁止上传）
+发票信息/
+发票信息/*.xlsx
+发票信息/*.xls
+发票信息/*:Zone.Identifier
+
+# 代码资料中的 Excel/数据库文件（含客户编码、供应商编码、凭证模板等）
+代码资料/*.xlsx
+代码资料/*.xls
+代码资料/*.xlsm
+代码资料/*.xml
+代码资料/*:Zone.Identifier
+代码资料/原版导出的代码资料/
+
+# 生成的输出文件
+进账凭证明细.xlsx
+*.xlsx
+*.xls
+
+# 内部运行数据
+omo/run-continuation/
+*.json
