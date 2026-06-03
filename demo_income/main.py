@@ -211,7 +211,7 @@ if st.session_state.vouchers:
         for e in entries:
             debit = e.debit_foreign if e.debit_foreign > 0 else 0
             credit = -e.debit_foreign if e.debit_foreign < 0 else 0
-            cf = f"{e.cash_flow_code} {e.cash_flow_name}" if e.cash_flow_code else ""
+            cf_text = " | ".join(f"{c} {n} {a:,.2f}" for c, n, a in e.cash_flows) if e.cash_flows else ""
             voucher_data.append({
                 "凭证号": e.voucher_no,
                 "摘要": e.summary,
@@ -221,8 +221,7 @@ if st.session_state.vouchers:
                 "贷方": credit if credit else None,
                 "辅助核算1": e.aux1,
                 "辅助核算2": e.aux2,
-                "现金流量编码": e.cash_flow_code,
-                "现金流量名称": e.cash_flow_name,
+                "现金流量": cf_text,
                 "制单人": e.preparer,
                 "制单日期": e.prepare_date,
                 "凭证类别": e.voucher_type,

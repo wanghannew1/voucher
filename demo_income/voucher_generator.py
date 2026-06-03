@@ -25,8 +25,7 @@ class VoucherEntry:
     unit_name: str = "吉林省彩虹人才开发咨询服务有限公司"
     aux1: str = ""                  # 辅助核算1
     aux2: str = ""                  # 辅助核算2
-    cash_flow_code: str = ""        # 现金流量编码
-    cash_flow_name: str = ""        # 现金流量名称
+    cash_flows: list = field(default_factory=list)  # 现金流量子表 [(code, name, amount), ...]
 
 
 def generate_summary(business_type: str, bank_name: str, customer_name: str, project_name: str = "") -> str:
@@ -72,8 +71,10 @@ def generate_voucher(match_result, voucher_no: int) -> List[VoucherEntry]:
             debit_foreign=total,
             debit_local=total,
             aux1=f"{tx.bank_code}:银行档案",
-            cash_flow_code="1113",
-            cash_flow_name="收到的其他与经营活动有关的现金"
+            cash_flows=[
+                ("1113", "收到的其他与经营活动有关的现金", deduction),  # 扣除额部分
+                ("1111", "销售商品、提供劳务收到的现金", management_fee),  # 管理费部分
+            ]
         )
         entries.append(entry1)
 
@@ -137,8 +138,9 @@ def generate_voucher(match_result, voucher_no: int) -> List[VoucherEntry]:
             debit_foreign=total,
             debit_local=total,
             aux1=f"{tx.bank_code}:银行档案",
-            cash_flow_code="1113",
-            cash_flow_name="收到的其他与经营活动有关的现金"
+            cash_flows=[
+                ("1113", "收到的其他与经营活动有关的现金", total),
+            ]
         )
         entries.append(entry1)
 
@@ -170,7 +172,7 @@ def generate_all_vouchers(match_results: List) -> List[List[VoucherEntry]]:
 
 
 def export_vouchers_to_list(vouchers: List[List[VoucherEntry]]) -> List[Dict]:
-    """将凭证分录导出为字典列表，对齐系统导入格式（72列）"""
+    """将凭证分录导出为字典列表，对齐系统导入格式（72列）+ 现金流子表"""
     rows = []
     for entries in vouchers:
         for e in entries:
@@ -246,7 +248,84 @@ def export_vouchers_to_list(vouchers: List[List[VoucherEntry]]) -> List[Dict]:
                 '分录自定义项28': '',
                 '分录自定义项29': '',
                 '分录自定义项30': '',
-                '现金流量编码': e.cash_flow_code,
-                '现金流量名称': e.cash_flow_name,
             })
+            # 现金流子表：1002分录拆成多条现金流记录
+            if e.subject_code == "1002" and e.cash_flows:
+                for code, name, amount in e.cash_flows:
+                    if amount > 0:
+                        rows.append({
+                            '财务核算账簿': '',
+                            '凭证类别': '',
+                            '凭证号': '',
+                            '附单据数': '',
+                            '制单人': '',
+                            '制单日期': '',
+                            '摘要': '',
+                            '利润中心': '',
+                            '科目编码': '',
+                            '币种': '',
+                            '原币借方金额': amount,
+                            '本币借方金额': amount,
+                            '集团本币借方金额': '',
+                            '全局本币借方金额': '',
+                            '业务单元': '',
+                            '单价': '',
+                            '借方数量': '',
+                            '贷方数量': '',
+                            '原币贷方金额': 0,
+                            '本币贷方金额': 0,
+                            '集团本币贷方金额': '',
+                            '全局本币贷方金额': '',
+                            '票据号': '',
+                            '结算业务日期': '',
+                            '结算方式': '',
+                            '核销号': '',
+                            '业务日期': '',
+                            '银行账户': '',
+                            '票据类型': '',
+                            '账簿本币汇率': '',
+                            '集团本币汇率': '',
+                            '全局本币汇率': '',
+                            '辅助核算1': '',
+                            '辅助核算2': '',
+                            '辅助核算3': '',
+                            '辅助核算4': '',
+                            '辅助核算5': '',
+                            '辅助核算6': '',
+                            '辅助核算7': '',
+                            '辅助核算8': '',
+                            '辅助核算9': '',
+                            '分录自定义项1': '',
+                            '分录自定义项2': '',
+                            '分录自定义项3': '',
+                            '分录自定义项4': '',
+                            '分录自定义项5': '',
+                            '分录自定义项6': '',
+                            '分录自定义项7': '',
+                            '分录自定义项8': '',
+                            '分录自定义项9': '',
+                            '分录自定义项10': '',
+                            '分录自定义项11': '',
+                            '分录自定义项12': '',
+                            '分录自定义项13': '',
+                            '分录自定义项14': '',
+                            '分录自定义项15': '',
+                            '分录自定义项16': '',
+                            '分录自定义项17': '',
+                            '分录自定义项18': '',
+                            '分录自定义项19': '',
+                            '分录自定义项20': '',
+                            '分录自定义项21': '',
+                            '分录自定义项22': '',
+                            '分录自定义项23': '',
+                            '分录自定义项24': '',
+                            '分录自定义项25': '',
+                            '分录自定义项26': '',
+                            '分录自定义项27': '',
+                            '分录自定义项28': '',
+                            '分录自定义项29': '',
+                            '分录自定义项30': '',
+                            '现金流量编码': code,
+                            '现金流量名称': name,
+                        })
     return rows
