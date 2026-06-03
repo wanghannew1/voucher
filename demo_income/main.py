@@ -69,6 +69,8 @@ with st.sidebar:
                            help="开票日期与进账日期允许的最大天数差")
     min_score = st.slider("最低匹配分数", 0.4, 1.0, 0.9, 0.1, key="min_score",
                           help="低于此分数视为未匹配")
+    enable_multi = st.checkbox("多票组合匹配", value=True, key="enable_multi",
+                               help="一笔进账对应多张发票时自动组合匹配（较慢）")
     col1, col2 = st.columns(2)
     load_btn = col1.button("加载数据", type="primary", use_container_width=True)
     match_btn = col2.button("自动匹配", type="primary", use_container_width=True)
@@ -150,6 +152,7 @@ if match_btn:
                 strict_amount=strict_amount,
                 days_range=days_range,
                 min_score=min_score,
+                enable_multi=enable_multi,
             )
         matched = sum(1 for r in st.session_state.match_results if r.matched_invoice)
         unmatched = len(st.session_state.match_results) - matched
@@ -209,24 +212,29 @@ if st.session_state.match_results:
     st.subheader("🔗 匹配结果")
     match_data = []
     for r in st.session_state.match_results:
-        if r.matched_invoice:
-            inv = r.matched_invoice
-            match_data.append({
-                "状态": "✅ 已匹配",
-                "客户名称": r.customer_name,
-                "客户编码": r.customer_code,
-                "匹配方式": r.match_type,
-                "价税合计": inv.total_amount,
-                "扣除额": inv.deduction,
-                "管理费": inv.management_fee,
-                "税额": inv.tax_amount,
-            })
+        invs = r.matched_invoices if r.matched_invoices else (
+            [r.matched_invoice] if r.matched_invoice else []
+        )
+        if invs:
+            for i, inv in enumerate(invs):
+                match_data.append({
+                    "状态": "✅ 已匹配" if i == 0 else "",
+                    "客户名称": r.customer_name if i == 0 else "",
+                    "客户编码": r.customer_code if i == 0 else "",
+                    "匹配方式": r.match_type if i == 0 else "",
+                    "发票号": inv.invoice_no,
+                    "价税合计": inv.total_amount,
+                    "扣除额": inv.deduction,
+                    "管理费": inv.management_fee,
+                    "税额": inv.tax_amount,
+                })
         else:
             match_data.append({
                 "状态": "❌ 未匹配",
                 "客户名称": r.customer_name,
                 "客户编码": r.customer_code,
                 "匹配方式": r.match_type,
+                "发票号": "",
                 "价税合计": None,
                 "扣除额": None,
                 "管理费": None,
