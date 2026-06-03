@@ -55,7 +55,7 @@ def demo():
 
     # 2. 匹配
     print("\n【步骤2】进账与发票自动匹配...")
-    results = match_transactions(ds)
+    results = match_transactions(ds, require_name=True, require_amount=True, strict_name=True, strict_amount=True)
     matched = [r for r in results if r.matched_invoice]
     unmatched = [r for r in results if not r.matched_invoice]
     print(f"  ✓ 匹配完成: 已匹配 {len(matched)} 笔，未匹配 {len(unmatched)} 笔")

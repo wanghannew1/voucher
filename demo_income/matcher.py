@@ -43,7 +43,7 @@ def dates_within_range(date1: str, date2: str, days: int = 30) -> bool:
         return False
 
 
-def match_by_name(tx, invoice, data_store) -> tuple:
+def match_by_name(tx, invoice, data_store, strict_name: bool = False) -> tuple:
     """按客户名称匹配
     返回: (是否匹配, 置信度, 客户信息)
     """
@@ -55,6 +55,8 @@ def match_by_name(tx, invoice, data_store) -> tuple:
     if tx_name == inv_name:
         cust = data_store.find_customer_by_name(tx_name)
         return True, 1.0, cust
+    if strict_name:
+        return False, 0.0, None
     # 子串匹配
     if tx_name in inv_name or inv_name in tx_name:
         cust = data_store.find_customer_by_name(tx_name) or data_store.find_customer_by_name(inv_name)
@@ -68,7 +70,7 @@ def match_by_name(tx, invoice, data_store) -> tuple:
     return False, 0.0, None
 
 
-def match_by_amount(tx, invoice) -> tuple:
+def match_by_amount(tx, invoice, strict_amount: bool = False, amount_tolerance: float = 0.01) -> tuple:
     """按金额匹配
     返回: (是否匹配, 置信度)
     """
@@ -77,21 +79,32 @@ def match_by_amount(tx, invoice) -> tuple:
     if tx_amount <= 0 or inv_amount <= 0:
         return False, 0.0
     # 精确匹配
-    if abs(tx_amount - inv_amount) < 0.01:
+    if abs(tx_amount - inv_amount) < amount_tolerance:
         return True, 1.0
+    if strict_amount:
+        return False, 0.0
     # 允许小误差（四舍五入等）
     if abs(tx_amount - inv_amount) < 1.0:
         return True, 0.95
     return False, 0.0
 
 
-def match_transactions(data_store, days_range: int = 30) -> List[MatchResult]:
+def match_transactions(data_store, days_range: int = 30,
+                       require_name: bool = True, require_amount: bool = True,
+                       require_date: bool = False,
+                       strict_name: bool = False, strict_amount: bool = False,
+                       amount_tolerance: float = 0.01,
+                       min_score: float = 0.4) -> List[MatchResult]:
     """将银行进账与发票进行匹配
-    匹配策略：
-    1. 按客户名称匹配（精确/模糊）
-    2. 按金额匹配（价税合计）
-    3. 按日期范围匹配（开票日期 vs 交易日期）
-    优先级：名称+金额+日期 > 名称+金额 > 名称+日期 > 金额+日期
+
+    可配置参数:
+      require_name   - 必须名称匹配
+      require_amount - 必须金额匹配
+      require_date   - 必须日期匹配
+      strict_name    - 名称必须精确匹配（不允许子串/去后缀）
+      strict_amount  - 金额必须精确匹配（不允许误差）
+      amount_tolerance - 金额误差阈值
+      min_score      - 最低匹配分数
     """
     income_txs = data_store.get_income_transactions()
     invoices = data_store.invoices
@@ -110,13 +123,21 @@ def match_transactions(data_store, days_range: int = 30) -> List[MatchResult]:
                 continue  # 跳过红字发票
 
             # 名称匹配
-            name_match, name_conf, cust = match_by_name(tx, inv, data_store)
+            name_match, name_conf, cust = match_by_name(tx, inv, data_store, strict_name)
             # 金额匹配
-            amount_match, amount_conf = match_by_amount(tx, inv)
+            amount_match, amount_conf = match_by_amount(tx, inv, strict_amount, amount_tolerance)
             # 日期匹配
             tx_date = normalize_date(tx.date)
             inv_date = normalize_date(inv.issue_date)
             date_match = dates_within_range(tx_date, inv_date, days_range)
+
+            # 按要求过滤
+            if require_name and not name_match:
+                continue
+            if require_amount and not amount_match:
+                continue
+            if require_date and not date_match:
+                continue
 
             # 计算综合得分
             score = 0.0
@@ -147,7 +168,7 @@ def match_transactions(data_store, days_range: int = 30) -> List[MatchResult]:
                 best_inv = inv
                 best_type = match_type
 
-        if best_inv and best_score >= 0.4:
+        if best_inv and best_score >= min_score:
             used_invoices.add(id(best_inv))
             result = MatchResult(
                 transaction=tx,

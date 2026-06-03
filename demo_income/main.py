@@ -34,7 +34,17 @@ with st.sidebar:
     invoice_file = st.file_uploader("发票信息", type=["xlsx", "xls"], key="invoice")
 
     st.divider()
-    st.header("🔧 操作")
+    st.header("⚙️ 匹配规则")
+    strict_name = st.checkbox("名称精确匹配", value=True, key="strict_name",
+                              help="勾选：银行户名必须与发票购买方完全一致；取消：允许子串/去后缀匹配")
+    strict_amount = st.checkbox("金额精确匹配", value=True, key="strict_amount",
+                                help="勾选：进账金额必须与发票价税合计完全一致；取消：允许1元内误差")
+    require_date = st.checkbox("要求日期匹配", value=False, key="require_date",
+                               help="勾选：开票日期必须在进账日期±N天内")
+    days_range = st.slider("日期范围（天）", 7, 90, 30, key="days_range",
+                           help="开票日期与进账日期允许的最大天数差")
+    min_score = st.slider("最低匹配分数", 0.4, 1.0, 0.9, 0.1, key="min_score",
+                          help="低于此分数视为未匹配")
     col1, col2 = st.columns(2)
     load_btn = col1.button("加载数据", type="primary", use_container_width=True)
     match_btn = col2.button("自动匹配", type="primary", use_container_width=True)
@@ -99,7 +109,16 @@ if match_btn:
         st.warning("请先加载数据！")
     else:
         with st.spinner("正在匹配银行进账与发票..."):
-            st.session_state.match_results = match_transactions(ds)
+            st.session_state.match_results = match_transactions(
+                ds,
+                require_name=True,
+                require_amount=True,
+                require_date=require_date,
+                strict_name=strict_name,
+                strict_amount=strict_amount,
+                days_range=days_range,
+                min_score=min_score,
+            )
         matched = sum(1 for r in st.session_state.match_results if r.matched_invoice)
         unmatched = len(st.session_state.match_results) - matched
         st.success(f"匹配完成！已匹配 {matched} 笔，未匹配 {unmatched} 笔")
