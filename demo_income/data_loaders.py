@@ -7,33 +7,24 @@ from typing import Dict, Optional
 
 def load_customers(file_path: str) -> Dict[str, Dict]:
     """加载客户编码表
-    注意：该Excel文件的列名存在错位，实际数据映射为：
-      - 客户名称列 = 客户编码（如 ch001, CBS0025）
-      - 客户基本分类列 = 客户名称（如 吉林省兽药饲料检验监测所）
-    返回: {客户编码: {name, classification, ...}}
+    列: 客户编码, 客户名称, 客户简称, 客户分类, ...
+    返回: {客户编码: {name, classification, code}}
     """
     df = pd.read_excel(file_path, sheet_name=0, header=0)
     customers = {}
     for _, row in df.iterrows():
-        # 使用正确的列映射
-        code_raw = row.get('客户名称', '')
-        name_raw = row.get('客户基本分类', '')
-        if pd.isna(code_raw) or pd.isna(name_raw):
-            continue
-        code = str(code_raw).strip()
-        name = str(name_raw).strip()
+        code = str(row.get('客户编码', '')).strip()
+        name = str(row.get('客户名称', '')).strip()
+        classification = str(row.get('客户分类', '')).strip()
         if not code or not name:
             continue
         if code.lower() in ['nan', 'none', 'null']:
             continue
         if name.lower() in ['nan', 'none', 'null']:
             continue
-        # 客户编码应该是较短的字符串（如 ch001, CBS0025）
-        if len(code) > 20 or '公司' in code:
-            continue
         customers[code] = {
             'name': name,
-            'classification': '',
+            'classification': classification,
             'code': code
         }
     return customers

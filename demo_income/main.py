@@ -214,13 +214,21 @@ if st.session_state.vouchers:
             cf = f"{e.cash_flow_code} {e.cash_flow_name}" if e.cash_flow_code else ""
             voucher_data.append({
                 "凭证号": e.voucher_no,
+                "摘要": e.summary,
                 "科目编码": e.subject_code,
                 "科目名称": e.subject_name,
                 "借方": debit if debit else None,
                 "贷方": credit if credit else None,
                 "辅助核算1": e.aux1,
                 "辅助核算2": e.aux2,
-                "现金流量": cf,
+                "现金流量编码": e.cash_flow_code,
+                "现金流量名称": e.cash_flow_name,
+                "制单人": e.preparer,
+                "制单日期": e.prepare_date,
+                "凭证类别": e.voucher_type,
+                "财务核算账簿": e.accounting_book,
+                "币种": e.currency,
+                "业务单元": e.unit_name,
             })
     voucher_df = pd.DataFrame(voucher_data)
     st.dataframe(voucher_df, use_container_width=True, height=500)
