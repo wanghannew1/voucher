@@ -29,8 +29,32 @@ if "vouchers" not in st.session_state:
 # ==== 侧边栏：文件上传与操作 ====
 with st.sidebar:
     st.header("📁 文件上传")
-    bank_file = st.file_uploader("银行对账单", type=["xlsx", "xls"], key="bank")
-    bank_type = st.selectbox("银行类型", ["自动识别", "吉林银行", "工商银行", "建设银行"], key="bank_type")
+
+    # 银行对账单：支持多文件
+    if "bank_files" not in st.session_state:
+        st.session_state.bank_files = [{"file": None, "type": "自动识别"}]
+
+    st.subheader("银行对账单（可多个）")
+    for i, bf in enumerate(st.session_state.bank_files):
+        cols = st.columns([3, 2, 1])
+        with cols[0]:
+            f = st.file_uploader(f"文件 {i+1}", type=["xlsx", "xls"], key=f"bank_{i}")
+            st.session_state.bank_files[i]["file"] = f
+        with cols[1]:
+            t = st.selectbox("银行", ["自动识别", "吉林银行", "工商银行", "建设银行"],
+                             index=["自动识别", "吉林银行", "工商银行", "建设银行"].index(bf["type"]),
+                             key=f"btype_{i}")
+            st.session_state.bank_files[i]["type"] = t
+        with cols[2]:
+            if i > 0:
+                if st.button("✕", key=f"del_bank_{i}"):
+                    st.session_state.bank_files.pop(i)
+                    st.rerun()
+
+    if st.button("+ 添加银行对账单"):
+        st.session_state.bank_files.append({"file": None, "type": "自动识别"})
+        st.rerun()
+
     invoice_file = st.file_uploader("发票信息", type=["xlsx", "xls"], key="invoice")
 
     st.divider()
@@ -61,26 +85,34 @@ def log(msg):
 
 # ==== 加载数据 ====
 if load_btn:
-    if not bank_file or not invoice_file:
+    bank_files_data = [bf for bf in st.session_state.bank_files if bf["file"]]
+    if not bank_files_data or not invoice_file:
         st.warning("请先上传银行对账单和发票信息文件！")
     else:
         try:
             ds = st.session_state.data_store
+            ds.bank_transactions = []
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-                tmp.write(bank_file.read())
-                bank_path = tmp.name
-            if bank_type == "吉林银行":
-                ds.bank_transactions = parse_jilin_bank(bank_path)
-            elif bank_type == "工商银行":
-                ds.bank_transactions = parse_icbc(bank_path)
-            elif bank_type == "建设银行":
-                ds.bank_transactions = parse_ccb(bank_path)
-            else:
-                ds.bank_transactions = parse_bank_statement(bank_path)
-            os.unlink(bank_path)
+            for bf in bank_files_data:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+                    tmp.write(bf["file"].read())
+                    bank_path = tmp.name
+                bank_type = bf["type"]
+                if bank_type == "吉林银行":
+                    txs = parse_jilin_bank(bank_path)
+                elif bank_type == "工商银行":
+                    txs = parse_icbc(bank_path)
+                elif bank_type == "建设银行":
+                    txs = parse_ccb(bank_path)
+                else:
+                    txs = parse_bank_statement(bank_path)
+                os.unlink(bank_path)
+                ds.bank_transactions.extend(txs)
+                income = sum(1 for t in txs if t.is_income)
+                log(f"{bf['file'].name}: {len(txs)} 笔，进账 {income} 笔")
+
             income_count = len(ds.get_income_transactions())
-            log(f"银行流水: 共 {len(ds.bank_transactions)} 笔，进账 {income_count} 笔")
+            log(f"银行流水汇总: 共 {len(ds.bank_transactions)} 笔，进账 {income_count} 笔")
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                 tmp.write(invoice_file.read())
