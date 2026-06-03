@@ -10,7 +10,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from parsers import parse_bank_statement, parse_invoices
+from parsers import parse_bank_statement, parse_invoices, parse_jilin_bank, parse_icbc, parse_ccb
 from data_loaders import DataStore
 from matcher import match_transactions
 from voucher_generator import generate_all_vouchers, export_vouchers_to_list
@@ -30,6 +30,7 @@ if "vouchers" not in st.session_state:
 with st.sidebar:
     st.header("📁 文件上传")
     bank_file = st.file_uploader("银行对账单", type=["xlsx", "xls"], key="bank")
+    bank_type = st.selectbox("银行类型", ["自动识别", "吉林银行", "工商银行", "建设银行"], key="bank_type")
     invoice_file = st.file_uploader("发票信息", type=["xlsx", "xls"], key="invoice")
 
     st.divider()
@@ -59,7 +60,14 @@ if load_btn:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
                 tmp.write(bank_file.read())
                 bank_path = tmp.name
-            ds.bank_transactions = parse_bank_statement(bank_path)
+            if bank_type == "吉林银行":
+                ds.bank_transactions = parse_jilin_bank(bank_path)
+            elif bank_type == "工商银行":
+                ds.bank_transactions = parse_icbc(bank_path)
+            elif bank_type == "建设银行":
+                ds.bank_transactions = parse_ccb(bank_path)
+            else:
+                ds.bank_transactions = parse_bank_statement(bank_path)
             os.unlink(bank_path)
             income_count = len(ds.get_income_transactions())
             log(f"银行流水: 共 {len(ds.bank_transactions)} 笔，进账 {income_count} 笔")
