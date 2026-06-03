@@ -1,8 +1,16 @@
 """
 进账明细生成器 - 主程序（tkinter UI）
 """
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
+try:
+    import tkinter as tk
+    from tkinter import ttk, filedialog, messagebox, scrolledtext
+except ImportError:
+    print("错误: 缺少 tkinter 模块，请安装：")
+    print("  macOS:   brew install python-tk@$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1-2)")
+    print("  Ubuntu:  sudo apt-get install python3-tk")
+    print("  Windows: 重新安装 Python 并勾选 tcl/tk 选项")
+    print("\n或使用命令行版本: python demo_cli.py")
+    sys.exit(1)
 import pandas as pd
 import os
 import sys

@@ -41,15 +41,23 @@ def load_customers(file_path: str) -> Dict[str, Dict]:
 
 def load_subject_codes(file_path: str) -> Dict[str, str]:
     """加载现金流量科目代码"""
-    df = pd.read_excel(file_path, sheet_name=0, header=None)
     subjects = {}
-    for _, row in df.iterrows():
-        val = str(row[0]).strip()
-        if val and val != '现金流量表表项':
-            # 格式: "1111销售商品、提供劳务收到的现金"
-            code = val[:4]
-            name = val[4:]
-            subjects[code] = name
+    if file_path.endswith('.txt'):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                val = line.strip()
+                if val and val != '现金流量表表项':
+                    code = val[:4]
+                    name = val[4:]
+                    subjects[code] = name
+    else:
+        df = pd.read_excel(file_path, sheet_name=0, header=None)
+        for _, row in df.iterrows():
+            val = str(row[0]).strip()
+            if val and val != '现金流量表表项':
+                code = val[:4]
+                name = val[4:]
+                subjects[code] = name
     return subjects
 
 

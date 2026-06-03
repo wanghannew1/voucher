@@ -24,14 +24,15 @@ def demo():
     print("\n【步骤1】加载银行对账单和发票数据...")
     ds = DataStore()
 
+    ref_dir = os.path.join(base_dir, "代码资料")
     bank_files = [
-        os.path.join(base_dir, "银行流水/彩虹吉林银行4月对账单.xlsx"),
-        os.path.join(base_dir, "银行流水/彩虹工行4月对账单.xls"),
-        os.path.join(base_dir, "银行流水/彩虹建行4月对账单.xls"),
+        os.path.join(ref_dir, "银行流水/彩虹吉林银行4月对账单.xlsx"),
+        os.path.join(ref_dir, "银行流水/彩虹工行4月对账单.xls"),
+        os.path.join(ref_dir, "银行流水/彩虹建行4月对账单.xls"),
     ]
-    invoice_file = os.path.join(base_dir, "发票信息/4月901张发票.xlsx")
-    customers_file = os.path.join(base_dir, "代码资料/客户编码.xlsx")
-    subjects_file = os.path.join(base_dir, "代码资料/科目代码.xlsx")
+    invoice_file = os.path.join(ref_dir, "4月901张发票.xlsx")
+    customers_file = os.path.join(ref_dir, "化简代码表/客户基本信息列表 (476)-化简版.xlsx")
+    subjects_file = os.path.join(ref_dir, "化简代码表/现金流量表表项.txt")
 
     all_transactions = []
     for bf in bank_files:
