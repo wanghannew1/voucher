@@ -2,8 +2,4 @@
 pandas>=1.5
 openpyxl>=3.0
 xlrd>=2.0
-
-# 注意：tkinter 是 Python 标准库，但需要系统级安装
-# macOS:   brew install python-tk@3.x
-# Ubuntu:  sudo apt-get install python3-tk
-# Windows: 安装 Python 时勾选 tcl/tk 选项（默认已包含）
+streamlit>=1.30
