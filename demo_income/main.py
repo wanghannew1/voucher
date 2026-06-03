@@ -143,6 +143,15 @@ if match_btn:
         st.warning("请先加载数据！")
     else:
         with st.spinner("正在匹配银行进账与发票..."):
+            progress_bar = st.progress(0, text="准备中...")
+            status_text = st.empty()
+
+            def update_progress(current, total, name):
+                pct = current / total
+                progress_bar.progress(pct, text=f"匹配中 ({current}/{total}) {name}")
+                if current % 50 == 0 or current == total:
+                    status_text.text(f"进度: {current}/{total} ({pct:.0%})")
+
             st.session_state.match_results = match_transactions(
                 ds,
                 require_name=True,
@@ -153,7 +162,10 @@ if match_btn:
                 days_range=days_range,
                 min_score=min_score,
                 enable_multi=enable_multi,
+                progress_callback=update_progress,
             )
+            progress_bar.progress(1.0, text="匹配完成!")
+            status_text.empty()
         matched = sum(1 for r in st.session_state.match_results if r.matched_invoice)
         unmatched = len(st.session_state.match_results) - matched
         st.success(f"匹配完成！已匹配 {matched} 笔，未匹配 {unmatched} 笔")
