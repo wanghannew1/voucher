@@ -77,6 +77,14 @@ with st.sidebar:
         key="multi_exclude",
         help="这些单位不参与多票组合匹配，只做单票严格匹配"
     )
+
+    st.subheader("银行→客户映射（外包业务用）")
+    bank_cust_map = st.text_area(
+        "银行名称=客户编码（每行一个）",
+        value="吉林银行股份有限公司=GY040",
+        key="bank_cust_map",
+        help="格式: 银行流水中的名称=客户编码，如: 吉林银行股份有限公司=GY040"
+    )
     col1, col2 = st.columns(2)
     load_btn = col1.button("加载数据", type="primary", use_container_width=True)
     match_btn = col2.button("自动匹配", type="primary", use_container_width=True)
@@ -137,6 +145,14 @@ if load_btn:
             if os.path.exists(customers_path) and os.path.exists(subjects_path):
                 ds.load_reference_data(customers_path, subjects_path)
                 log(f"客户档案: {len(ds.customers)} 条")
+
+            # 解析银行→客户映射
+            for line in bank_cust_map.split('\n'):
+                line = line.strip()
+                if '=' in line:
+                    parts = line.split('=', 1)
+                    ds.bank_customer_map[parts[0].strip()] = parts[1].strip()
+            log(f"银行→客户映射: {len(ds.bank_customer_map)} 条")
 
             st.success(f"数据加载完成！进账 {income_count} 笔，正数发票 {positive_count} 张")
         except Exception as e:

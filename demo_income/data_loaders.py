@@ -61,6 +61,7 @@ class DataStore:
         self.invoices: list = []                      # 发票
         self.matched_results: list = []               # 匹配结果
         self.vouchers: list = []                      # 生成的凭证
+        self.bank_customer_map: Dict[str, str] = {}   # 银行名称→客户编码映射
 
     def load_reference_data(self, customers_path: str, subjects_path: str):
         """加载基础参考数据"""

@@ -48,26 +48,48 @@ def generate_voucher(match_result, voucher_no: int) -> List[VoucherEntry]:
     # 摘要
     bank_short = tx.bank_name
     cust_name = match_result.customer_name
-    summary = f"收往来派遣费 {bank_short} {cust_name}"
 
-    if invoices:
-        # ====== 匹配到发票的凭证 ======
-        total_deduction = sum(inv.deduction for inv in invoices)
-        total_tax = sum(inv.tax_amount for inv in invoices)
-        total_management = sum(inv.management_fee for inv in invoices)
-        total_income = total_management - total_tax if total_management > total_tax else 0
+    # 判断是否外包业务
+    is_outsource = any(inv.is_outsource for inv in invoices) if invoices else False
+
+    if is_outsource:
+        # ====== 外包业务凭证 ======
+        summary = f"收外包业务费 {bank_short} {match_result.customer_name}"
         total_amount = sum(inv.total_amount for inv in invoices)
 
         # 分录1: 借 1002 银行存款
         entry1 = VoucherEntry(
-            row_no=voucher_no,
-            voucher_no=voucher_no,
-            prepare_date=date_str,
-            summary=summary,
-            subject_code="1002",
-            subject_name="银行存款",
-            debit_foreign=tx.credit,
-            debit_local=tx.credit,
+            row_no=voucher_no, voucher_no=voucher_no, prepare_date=date_str,
+            summary=summary, subject_code="1002", subject_name="银行存款",
+            debit_foreign=tx.credit, debit_local=tx.credit,
+            aux1=f"{tx.bank_code}:银行档案",
+            cash_flows=[("1113", "收到的其他与经营活动有关的现金", tx.credit)]
+        )
+        entries.append(entry1)
+
+        # 分录2+: 贷 1122 应收账款（每张发票一行）
+        for inv in invoices:
+            entry = VoucherEntry(
+                row_no=voucher_no, voucher_no=voucher_no, prepare_date=date_str,
+                summary=summary, subject_code="1122", subject_name="应收账款",
+                debit_foreign=-inv.total_amount, debit_local=-inv.total_amount,
+                aux1=f"{match_result.customer_code}:客户档案" if match_result.customer_code else "",
+            )
+            entries.append(entry)
+
+    elif invoices:
+        # ====== 派遣业务凭证（有备注，含扣除额/管理费）======
+        summary = f"收往来派遣费 {bank_short} {cust_name}"
+        total_deduction = sum(inv.deduction for inv in invoices)
+        total_tax = sum(inv.tax_amount for inv in invoices)
+        total_management = sum(inv.management_fee for inv in invoices)
+        total_income = total_management - total_tax if total_management > total_tax else 0
+
+        # 分录1: 借 1002 银行存款
+        entry1 = VoucherEntry(
+            row_no=voucher_no, voucher_no=voucher_no, prepare_date=date_str,
+            summary=summary, subject_code="1002", subject_name="银行存款",
+            debit_foreign=tx.credit, debit_local=tx.credit,
             aux1=f"{tx.bank_code}:银行档案",
             cash_flows=[
                 ("1113", "收到的其他与经营活动有关的现金", total_deduction),
@@ -79,14 +101,9 @@ def generate_voucher(match_result, voucher_no: int) -> List[VoucherEntry]:
         # 分录2: 贷 224101 其他应付款-客户往来（扣除额合计）
         if total_deduction > 0:
             entry2 = VoucherEntry(
-                row_no=voucher_no,
-                voucher_no=voucher_no,
-                prepare_date=date_str,
-                summary=summary,
-                subject_code="224101",
-                subject_name="其他应付款-客户往来",
-                debit_foreign=-total_deduction,
-                debit_local=-total_deduction,
+                row_no=voucher_no, voucher_no=voucher_no, prepare_date=date_str,
+                summary=summary, subject_code="224101", subject_name="其他应付款-客户往来",
+                debit_foreign=-total_deduction, debit_local=-total_deduction,
                 aux1=f"{match_result.customer_code}:客户档案" if match_result.customer_code else "",
             )
             entries.append(entry2)
@@ -94,30 +111,19 @@ def generate_voucher(match_result, voucher_no: int) -> List[VoucherEntry]:
         # 分录3: 贷 222121 应交税费-简易计税（税额合计）
         if total_tax > 0:
             entry3 = VoucherEntry(
-                row_no=voucher_no,
-                voucher_no=voucher_no,
-                prepare_date=date_str,
-                summary=summary,
-                subject_code="222121",
-                subject_name="应交税费-简易计税",
-                debit_foreign=-total_tax,
-                debit_local=-total_tax,
+                row_no=voucher_no, voucher_no=voucher_no, prepare_date=date_str,
+                summary=summary, subject_code="222121", subject_name="应交税费-简易计税",
+                debit_foreign=-total_tax, debit_local=-total_tax,
             )
             entries.append(entry3)
 
         # 分录4: 贷 600101 派遣收入（管理费-税额）
         if total_income > 0:
             entry4 = VoucherEntry(
-                row_no=voucher_no,
-                voucher_no=voucher_no,
-                prepare_date=date_str,
-                summary=summary,
-                subject_code="600101",
-                subject_name="派遣收入",
-                debit_foreign=-total_income,
-                debit_local=-total_income,
-                aux1="01:部门",
-                aux2="PQ001:项目档案",
+                row_no=voucher_no, voucher_no=voucher_no, prepare_date=date_str,
+                summary=summary, subject_code="600101", subject_name="派遣收入",
+                debit_foreign=-total_income, debit_local=-total_income,
+                aux1="01:部门", aux2="PQ001:项目档案",
             )
             entries.append(entry4)
 

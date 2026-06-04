@@ -162,6 +162,25 @@ def match_transactions(data_store, days_range: int = 30,
             if name_match:
                 same_name_invs.append((inv, cust))
 
+        # 如果名称匹配不到，尝试银行名称→客户编码映射
+        mapped_cust = None
+        if not same_name_invs and data_store.bank_customer_map:
+            for bank_name, cust_code in data_store.bank_customer_map.items():
+                if bank_name in tx.counterparty_name or tx.counterparty_name in bank_name:
+                    if cust_code in data_store.customers:
+                        mapped_cust = data_store.customers[cust_code]
+                        # 用客户名称去匹配发票
+                        cust_name = mapped_cust['name']
+                        for inv in positive_invoices:
+                            if id(inv) in used_invoices:
+                                continue
+                            # 外包发票：用客户名称匹配
+                            if inv.is_outsource and cust_name in inv.buyer_name:
+                                same_name_invs.append((inv, mapped_cust))
+                            elif not inv.is_outsource and (cust_name in inv.buyer_name or inv.buyer_name in cust_name):
+                                same_name_invs.append((inv, mapped_cust))
+                        break
+
         if not same_name_invs:
             continue
 

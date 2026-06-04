@@ -50,7 +50,18 @@ class Invoice:
     remark: str                    # 备注（包含扣除额和管理费）
     deduction: float = 0.0         # 扣除额（工资部分，不计税）
     management_fee: float = 0.0    # 管理费（收入部分，计税）
+    is_outsource: bool = False     # 是否外包业务发票
     raw_data: Dict = field(default_factory=dict)
+
+
+OUTSOURCE_KEYWORDS = ['外包']
+
+
+def is_outsource_invoice(service_name: str) -> bool:
+    """根据货物/劳务名称判断是否为外包业务发票"""
+    if not service_name:
+        return False
+    return any(kw in service_name for kw in OUTSOURCE_KEYWORDS)
 
 
 def parse_amount(val):
@@ -229,7 +240,12 @@ def parse_invoices(file_path: str) -> List[Invoice]:
     for _, row in df.iterrows():
         try:
             remark = str(row.get('备注', '')).strip()
-            if not remark or remark in ['nan', 'None', '备注']:
+            if remark in ['nan', 'None', '备注']:
+                remark = ''
+            service_name = str(row.get('货物或应税劳务名称', '')).strip()
+            is_outsource = is_outsource_invoice(service_name)
+            # 派遣发票必须有备注，外包发票可以没有备注
+            if not remark and not is_outsource:
                 continue
             # 跳过没有有效购买方名称的行
             buyer = str(row.get('购买方名称', '')).strip()
@@ -248,7 +264,7 @@ def parse_invoices(file_path: str) -> List[Invoice]:
                 buyer_name=buyer,
                 seller_name=str(row.get('销方名称', '')).strip(),
                 issue_date=date_str,
-                service_name=str(row.get('货物或应税劳务名称', '')).strip(),
+                service_name=service_name,
                 amount=parse_amount(row.get('金额', 0)),
                 tax_rate=str(row.get('税率', '')).strip(),
                 tax_amount=parse_amount(row.get('税额', 0)),
@@ -257,6 +273,7 @@ def parse_invoices(file_path: str) -> List[Invoice]:
                 remark=remark,
                 deduction=deduction,
                 management_fee=management_fee,
+                is_outsource=is_outsource,
                 raw_data=row.to_dict()
             )
             invoices.append(inv)
