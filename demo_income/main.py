@@ -233,6 +233,7 @@ if st.session_state.match_results:
     st.subheader("🔗 匹配结果")
     match_data = []
     for r in st.session_state.match_results:
+        tx = r.transaction
         invs = r.matched_invoices if r.matched_invoices else (
             [r.matched_invoice] if r.matched_invoice else []
         )
@@ -240,7 +241,10 @@ if st.session_state.match_results:
             for i, inv in enumerate(invs):
                 match_data.append({
                     "状态": "✅ 已匹配" if i == 0 else "",
-                    "客户名称": r.customer_name if i == 0 else "",
+                    "进账日期": tx.date if i == 0 else "",
+                    "银行": tx.bank_name if i == 0 else "",
+                    "对方户名": tx.counterparty_name if i == 0 else "",
+                    "进账金额": tx.credit if i == 0 else None,
                     "客户编码": r.customer_code if i == 0 else "",
                     "匹配方式": r.match_type if i == 0 else "",
                     "发票号": inv.invoice_no,
@@ -252,7 +256,10 @@ if st.session_state.match_results:
         else:
             match_data.append({
                 "状态": "❌ 未匹配",
-                "客户名称": r.customer_name,
+                "进账日期": tx.date,
+                "银行": tx.bank_name,
+                "对方户名": tx.counterparty_name,
+                "进账金额": tx.credit,
                 "客户编码": r.customer_code,
                 "匹配方式": r.match_type,
                 "发票号": "",
