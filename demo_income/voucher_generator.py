@@ -129,6 +129,7 @@ def generate_voucher(match_result, voucher_no: int) -> List[VoucherEntry]:
 
     else:
         # ====== 未匹配到发票的简化凭证（2条分录）======
+        summary = f"收往来派遣费 {bank_short} {cust_name}"
         total = tx.credit
 
         entry1 = VoucherEntry(

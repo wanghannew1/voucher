@@ -153,33 +153,32 @@ def match_transactions(data_store, days_range: int = 30,
         if progress_callback:
             progress_callback(idx + 1, total, f"[单票] {tx.counterparty_name}")
 
-        # 预过滤同名发票
-        same_name_invs = []
-        for inv in positive_invoices:
-            if id(inv) in used_invoices:
-                continue
-            name_match, _, cust = match_by_name(tx, inv, data_store, strict_name)
-            if name_match:
-                same_name_invs.append((inv, cust))
-
-        # 如果名称匹配不到，尝试银行名称→客户编码映射
+        # 检查是否有映射表覆盖
         mapped_cust = None
-        if not same_name_invs and data_store.bank_customer_map:
+        if data_store.bank_customer_map:
             for bank_name, cust_code in data_store.bank_customer_map.items():
                 if bank_name in tx.counterparty_name or tx.counterparty_name in bank_name:
                     if cust_code in data_store.customers:
                         mapped_cust = data_store.customers[cust_code]
-                        # 用客户名称去匹配发票
-                        cust_name = mapped_cust['name']
-                        for inv in positive_invoices:
-                            if id(inv) in used_invoices:
-                                continue
-                            # 外包发票：用客户名称匹配
-                            if inv.is_outsource and cust_name in inv.buyer_name:
-                                same_name_invs.append((inv, mapped_cust))
-                            elif not inv.is_outsource and (cust_name in inv.buyer_name or inv.buyer_name in cust_name):
-                                same_name_invs.append((inv, mapped_cust))
                         break
+
+        same_name_invs = []
+        if mapped_cust:
+            # 有映射：优先用映射，精确匹配发票购买方
+            for inv in positive_invoices:
+                if id(inv) in used_invoices:
+                    continue
+                # 精确匹配：发票购买方 = 银行户名
+                if inv.buyer_name == tx.counterparty_name:
+                    same_name_invs.append((inv, mapped_cust))
+        else:
+            # 无映射：按名称匹配
+            for inv in positive_invoices:
+                if id(inv) in used_invoices:
+                    continue
+                name_match, _, cust = match_by_name(tx, inv, data_store, strict_name)
+                if name_match:
+                    same_name_invs.append((inv, cust))
 
         if not same_name_invs:
             continue
@@ -246,19 +245,34 @@ def match_transactions(data_store, days_range: int = 30,
             if progress_callback:
                 progress_callback(idx + 1, total, f"[多票] {tx.counterparty_name}")
 
+            # 检查映射表
+            mapped_cust = None
+            if data_store.bank_customer_map:
+                for bank_name, cust_code in data_store.bank_customer_map.items():
+                    if bank_name in tx.counterparty_name or tx.counterparty_name in bank_name:
+                        if cust_code in data_store.customers:
+                            mapped_cust = data_store.customers[cust_code]
+                            break
+
             # 预过滤同名、同天发票
             tx_date = normalize_date(tx.date)
             candidates = []
             for inv in positive_invoices:
                 if id(inv) in used_invoices:
                     continue
-                name_match, _, cust = match_by_name(tx, inv, data_store, strict_name)
-                if not name_match:
-                    continue
-                inv_date = normalize_date(inv.issue_date)
-                if not dates_within_range(tx_date, inv_date, 1):
-                    continue
-                candidates.append((inv, cust))
+                if mapped_cust:
+                    # 有映射：精确匹配购买方
+                    if inv.buyer_name == tx.counterparty_name:
+                        candidates.append((inv, mapped_cust))
+                else:
+                    # 无映射：按名称匹配
+                    name_match, _, cust = match_by_name(tx, inv, data_store, strict_name)
+                    if not name_match:
+                        continue
+                    inv_date = normalize_date(inv.issue_date)
+                    if not dates_within_range(tx_date, inv_date, 1):
+                        continue
+                    candidates.append((inv, cust))
 
             multi_ok, multi_invs, cust, conf = match_multi_invoices(
                 tx, candidates, strict_amount, amount_tolerance
